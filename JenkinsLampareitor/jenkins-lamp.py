@@ -7,6 +7,11 @@ import time
 
 
 class Lamp():
+
+
+    def __init__(self):
+        self.ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+
     def setColor(self, r, g, b):
         self._sendCommand('#'+chr(r)+chr(g)+chr(b)+";")
 
@@ -16,7 +21,7 @@ class Lamp():
 
     def _sendCommand(self, command):
         try:
-            ser = serial.Serial('/dev/tty.usbmodem641', 9600, timeout=1)
+
 
 
             ready=done=0
@@ -24,33 +29,33 @@ class Lamp():
             while ( (not done) and (attemptsWrite < 10) ):
                 attemptsWrite+=1
 
-                line = ser.readline()
+                line = self.ser.readline()
                 ready = (line.strip() == "READY")
 
                 if ready:
                     print "SEND("+ str(attemptsWrite) +"): "+command
-                    ser.flush();
-                    ser.write(command)
+                    self.ser.flush()
+                    self.ser.write(command)
 
                     attemptsRead=0;
                     while (not done) and (attemptsRead<10):
-                        line=ser.readline()
+                        line=self.ser.readline()
                         if(line==""):
-                            attemptsRead+=1;
+                            attemptsRead+=1
                         print "READING("+ str(attemptsRead)+"): "+line
                         done = (line.strip()=="DONE")
 
                 else:
-                    ser.write(";");  # request for command
-                    ser.flush();
+                    self.ser.write(";")  # request for command
+                    self.ser.flush()
 
                 if(not done):
-                    time.sleep(1);
+                    time.sleep(1)
         except Exception as e:
             print "ERROR: "+e.message
         finally:
-            time.sleep(5);
-            ser.close()
+            time.sleep(5)
+
 
 
 class Jenkins():
@@ -133,5 +138,12 @@ class Jenkins():
 
 if __name__ == "__main__":
     h = Jenkins()
+    l = Lamp()
+    l.setColor(0xff,0x10,0xff);
 
-    h.CheckJob("localhost", "8080", "ZgzBus", False)
+    l.setColor(0xff,0xff,0x10);
+
+    l.setColor(0x10,0x10,0xff);
+
+
+    # h.CheckJob("localhost", "8080", "webapp-trunk", False)

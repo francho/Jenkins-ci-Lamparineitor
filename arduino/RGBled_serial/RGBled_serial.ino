@@ -62,15 +62,15 @@ void loop()                       // run over and over again
 {
   if (Serial.available() > 0) {
     Serial.println("READY");
-    String cmd = getCommand();
+    String c = getCommand();
     
-    Serial.println("Last: " + lastCmd + " cmd: "+cmd);
+    Serial.println("Last: " + lastCmd + " cmd: "+c);
     
-    if(lastCmd!=cmd) {
-      doCommand(cmd); 
+    if(lastCmd!=c) {
+      doCommand(c); 
       
     } else {
-      Serial.println("Command "+ cmd +" skipped");
+      Serial.println("Command "+ c +" skipped");
     }
     
     
