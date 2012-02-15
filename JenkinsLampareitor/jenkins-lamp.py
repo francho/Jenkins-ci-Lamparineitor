@@ -8,41 +8,49 @@ import time
 
 class Lamp():
     def setColor(self, r, g, b):
-        self._sendCommand('#'+chr(r)+chr(g)+chr(b))
+        self._sendCommand('#'+chr(r)+chr(g)+chr(b)+";")
 
     def blink(self):
-        self._sendCommand('*')
+        #self._sendCommand("blink;")
+        a=1
 
     def _sendCommand(self, command):
-        ser = serial.Serial('/dev/tty.usbmodem641', 9600, timeout=1)
+        try:
+            ser = serial.Serial('/dev/tty.usbmodem641', 9600, timeout=1)
 
-        ready=done=0
-        attempts=0
-        while not done:
-            print attempts
-            attempts+=1
-            ser.write(".");  # request for command
-            ser.flush();
-            line = ser.readline()
-            ready = (line.strip() == "READY")
 
-            if ready:
-                print "< " + command
-                ser.flush();
-                ser.write(command)
+            ready=done=0
+            attemptsWrite=0
+            while ( (not done) and (attemptsWrite < 10) ):
+                attemptsWrite+=1
 
-                while not done:
-                    print "> "+line
-                    line=ser.readline()
-                    done = (line.strip()=="DONE")
+                line = ser.readline()
+                ready = (line.strip() == "READY")
 
-            if(attempts>100):
-                return
+                if ready:
+                    print "SEND("+ str(attemptsWrite) +"): "+command
+                    ser.flush();
+                    ser.write(command)
 
-            if(not done):
-                time.sleep(1);
+                    attemptsRead=0;
+                    while (not done) and (attemptsRead<10):
+                        line=ser.readline()
+                        if(line==""):
+                            attemptsRead+=1;
+                        print "READING("+ str(attemptsRead)+"): "+line
+                        done = (line.strip()=="DONE")
 
-        ser.close()
+                else:
+                    ser.write(";");  # request for command
+                    ser.flush();
+
+                if(not done):
+                    time.sleep(1);
+        except Exception as e:
+            print "ERROR: "+e.message
+        finally:
+            time.sleep(5);
+            ser.close()
 
 
 class Jenkins():
@@ -54,31 +62,31 @@ class Jenkins():
 
     def _statusRunning(self):
         print "set lamp to running"
-        self.lamp.setColor(0xFF,0x01,0xFF);
+        self.lamp.setColor(0x01,0x33,0xFE);
         self.lamp.blink()
 
     def _statusOk(self):
         print "set lamp to ok"
-        self.lamp.setColor(0xFF,0x01,0xFF);
+        self.lamp.setColor(0x01,0xFE,0x01);
+
+    def _statusAborted(self):
+        print "set lamp to aborted"
+        self.lamp.setColor(0xAA,0x99,0x33);
 
     def _statusErr(self):
         print "set lamp to err"
-        self.lamp.setColor(0xFF,0xFF,0x01); # rojo
+        self.lamp.setColor(0xFE,0x01,0x01); # rojo
+
+    def _statusUnstable(self):
+        print "set lamp to unstable"
+        self.lamp.setColor(0x33,0x01,0x01); # rojo
 
     def _statusNotBuilt(self):
         print "set lamp to not built"
-        self.lamp.setColor(0x33,0x00,0x01); # rojo
-
+        self.lamp.setColor(0x01,0x01,0xFE); # rojo
 
     def CheckJob(self, server, port, jobname, waitForCompletion = False):
-        # self.lamp.setColor(0xFF,0x00,0x00); # rojo
-
-        # args = ["-s", "http://%s:%s/hudson/" % (server, port), "build", jobname]
-
         jenkinsurl = "http://"+server+":"+port+"/"
-        artifact_ids = [  ] # I need a build that contains all of these
-
-
 
         prevStatus = 0
 
@@ -94,29 +102,36 @@ class Jenkins():
             print "Jenkins -> " + status
 
             if status != prevStatus:
-                try:
-                    {
-                        "SUCCESS": self._statusOk(),
-                        "NOT_BUILT": self._statusNotBuilt(),
-                        "ERROR": self._statusErr(),
-                        "RUNNING": self._statusRunning()
-                    }[status]()
-                except:
-                    self.lamp.setColor(0x00,0x00,0x00);
-                    print "Jenkins -> Estado desconocido"
+                prevStatus=status
 
-            prevStatus=status
+            self._setStatus(status);
+
 
             time.sleep(10);
 
+    def _setStatus(self, status):
+        if(status == "SUCCESS"):
+            self._statusOk();
+        else:
+            if(status == "NOT_BUILT"):
+                self._statusNotBuilt();
+            else:
+                if(status=="ERROR"):
+                    self._statusErr();
+                else:
+                    if(status=="RUNNING"):
+                        self._statusRunning()
+                    else:
+                        if(status=="ABORTED"):
+                            self._statusAborted()
+                        else:
+                            if(status=="UNSTABLE"):
+                                self._statusUnstable()
+                            else:
+                                print "Jenkins -> Estado desconocido"
 
-        #
-        #lamp.setColor(0xFF,0x00,0xFF);
-        #lamp.setColor(0xFF,0xFF,0x00);
-        #
-
-        #lamp.blink()
 
 if __name__ == "__main__":
     h = Jenkins()
+
     h.CheckJob("localhost", "8080", "ZgzBus", False)

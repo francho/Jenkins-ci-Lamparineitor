@@ -1,37 +1,55 @@
 /*
- * Hello World!
+ * RGBled_serial
  *
- * This is the Hello World! for Arduino. 
- * It shows how to send data to the computer
+ * Permits change the color of the RGB led with commands sent by the usb
+ * 
+ * The "protocol" to change the color is:
+ * 
+ * usb     arduino
+ * ---     -------
+ * .    -> READY
+ * #RGB -> DONE     
+ *
+ * To blink the led
+ *
+ * usb     arduino
+ * ---     -------
+ * .    -> READY
+ * *    -> DONE 
+ * 
+ * 
+ * Based on arduino color cross-fading sample
+ * http://www.arduino.cc/en/Tutorial/ColorCrossfader
  */
 
 // Output
-int redPin = 10;   // Red LED,   connected to digital pin 9
-int grnPin = 11;  // Green LED, connected to digital pin 10
-int bluPin = 9;  // Blue LED,  connected to digital pin 11
+int redPin = 10;   // Red LED
+int grnPin = 11;  // Green LED
+int bluPin = 9;  // Blue LED
 
-int ledPin = 8;
+int ledPin = 8;  // Heart LED (red led)
 
-// data
-int inByte=0;
 
 // etc.
-int wait = 0;
+int wait = 1;
 int hold = 0;       // Optional hold when a color is complete, before the next crossFade
 int DEBUG = 0;      // DEBUG counter; if set to 1, will write values back via serial
 
 int loopCount = 60; // How often should DEBUG report?
+
+boolean waitCmd = false; // we are wating for a command?
+
 // Set initial color
-byte redVal = 0;
-byte grnVal = 0; 
-byte bluVal = 0;
+int redVal = 0;
+int grnVal = 0; 
+int bluVal = 0;
 
 // Initialize color variables
-byte prevR = redVal;
-byte prevG = grnVal;
-byte prevB = bluVal;
+int prevR = redVal;
+int prevG = grnVal;
+int prevB = bluVal;
 
-//
+String lastCmd = "-1";
 
 boolean blink=false;
 
@@ -42,32 +60,71 @@ void setup()                    // run once, when the sketch starts
 
 void loop()                       // run over and over again
 {
-  
   if (Serial.available() > 0) {
+    Serial.println("READY");
+    String cmd = getCommand();
     
-     // get incoming byte:
-    inByte = Serial.read();
+    Serial.println("Last: " + lastCmd + " cmd: "+cmd);
     
-    if(inByte=='.') {
-      Serial.println("READY");  // prints hello with ending line break 
-    } else if(inByte=='#') {
-      blink=false;
-      readColor();
-      Serial.println("DONE");
-    } else if(inByte=='*') {
-      blink=true;
-      Serial.flush();
-      Serial.println("DONE");
+    if(lastCmd!=cmd) {
+      doCommand(cmd); 
+      
+    } else {
+      Serial.println("Command "+ cmd +" skipped");
     }
-   }
+    
+    
+    
+  }
    
     if(blink) {
       setBlink();
     }
+    
+    delay(1000);
 }
 
+void doCommand(String cmd) {
+  if(cmd.length()==0 || cmd=="") {
+    return;
+  }
+  
+  char cmdType = cmd.charAt(0);   
+     
+      if(cmdType=='#' && cmd.length()==4) {
+        if(DEBUG) { Serial.println("Color command received "+cmd); }
+        blink=false;
+        crossFade(cmd[1], cmd[2], cmd[3]);
+      } else if(cmd=="blink") {
+        if(DEBUG) { Serial.println("blink command received "); }
+        blink=true;
+      } else {
+        Serial.println("Unknown command: "+cmd);
+      }
+  lastCmd=cmd;
+  Serial.println("DONE");
+}
+
+String getCommand() {
+  String cmd = "";
+  
+  char inByte;
+  
+  for(int x=0; x<15; x++) {
+    inByte=Serial.read();
+    Serial.flush();
+    if(inByte == ';') {
+      return cmd;
+    } else {
+      cmd.concat(char(inByte)) ;
+    } 
+  }
+}
+
+
 void setBlink() {
-  Serial.print(".*.");
+  Serial.print("blink OK");
+  
   digitalWrite(redPin, LOW);
   digitalWrite(grnPin, LOW);
   digitalWrite(bluPin, LOW);
@@ -84,48 +141,40 @@ void setBlink() {
 }
 
 
-void readColor() { 
- 
- byte color[3]={0,0,0};
- 
- for(int i=0; i<3; i++ ){
-   Serial.println(".");
-   Serial.flush();
-   color[i]=Serial.read();
- }
- Serial.flush();
- 
- Serial.print("OK - #");
- Serial.print(color[0],HEX);
- Serial.print(" / ");
- Serial.print(color[1],HEX);
- Serial.print(" / ");  
- Serial.println(color[2],HEX);
- 
- 
- crossFade(color);
-}
-
-/* crossFade() converts the percentage colors to a 
-*  0-255 range, then loops 1020 times, checking to see if  
+/* crossFade() 
+*  loops 1020 times, checking to see if  
 *  the value needs to be updated each time, then writing
 *  the color values to the correct pins.
 */
 
-void crossFade(byte color[3]) {
-  Serial.print("******* crossFade: #");
-  Serial.print(color[0],HEX);
-  Serial.print(" / ");
-  Serial.print(color[1],HEX);
-  Serial.print(" / ");  
-  Serial.println(color[2],HEX); 
-  
-  byte stepR = calculateStep(prevR, color[0]);
-  byte stepG = calculateStep(prevG, color[1]); 
-  byte stepB = calculateStep(prevB, color[2]);
+void crossFade(byte colorR, byte colorG, byte colorB) {
+  int stepR = calculateStep(prevR, colorR);
+  int stepG = calculateStep(prevG, colorG); 
+  int stepB = calculateStep(prevB, colorB);
   
   if(stepR==0 && stepG==0 && stepB==0) {
     return;
+  }
+  
+  if (DEBUG>1) {
+    Serial.print("******* crossFade FROM: #");
+    Serial.print(prevR,HEX);
+    Serial.print(" / ");
+    Serial.print(prevG,HEX);
+    Serial.print(" / ");  
+    Serial.println(prevB,HEX); 
+    Serial.print("******* crossFade TO: #");
+    Serial.print(colorR,HEX);
+    Serial.print(" / ");
+    Serial.print(colorG,HEX);
+    Serial.print(" / ");  
+    Serial.println(colorB,HEX);
+    Serial.print("******* Step: #");
+    Serial.print(stepR);
+    Serial.print(" / ");
+    Serial.print(stepG);
+    Serial.print(" / ");  
+    Serial.println(stepB);  
   }
 
   for (int i = 0; i <= 1020; i++) {
@@ -139,7 +188,7 @@ void crossFade(byte color[3]) {
     
     delay(wait); // Pause for 'wait' milliseconds before resuming the loop
 
-    if (DEBUG) { // If we want serial output, print it at the 
+    if (DEBUG > 10) { // If we want serial output, print it at the 
       if (i == 0 or i % loopCount == 0) { // beginning, and every loopCount times
         Serial.print("Loop/RGB: #");
         Serial.print(i);
@@ -197,8 +246,8 @@ void establishContact() {
 * between adjustments in the value.
 */
 
-byte calculateStep(byte prevValue, byte endValue) {
-  byte step = endValue - prevValue; // What's the overall gap?
+int calculateStep(int prevValue, int endValue) {
+  int step = endValue - prevValue; // What's the overall gap?
   if (step) {                      // If its non-zero, 
     step = 1020/step;              //   divide by 1020
   } 
@@ -211,20 +260,18 @@ byte calculateStep(byte prevValue, byte endValue) {
 *  (R, G, and B are each calculated separately.)
 */
 
-byte calculateVal(byte step, byte val, byte i) {
+int calculateVal(int step, int val, int i) {
   if ((step) && i % step == 0) { // If step is non-zero and its time to change a value,
     if (step > 0) {              //   increment the value if step is positive...
       val += 1;           
-    } 
-    else if (step < 0) {         //   ...or decrement it if step is negative
+    } else if (step < 0) {         //   ...or decrement it if step is negative
       val -= 1;
     } 
   }
   // Defensive driving: make sure val stays in the range 0-255
   if (val > 254) {
     val = 254;
-  } 
-  else if (val < 0) {
+  } else if (val < 0) {
     val = 0;
   }
   return val;
