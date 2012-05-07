@@ -39,6 +39,8 @@ int loopCount = 60; // How often should DEBUG report?
 
 boolean waitCmd = false; // we are wating for a command?
 
+const boolean OFF = HIGH;
+
 // Set initial color
 int redVal = 0;
 int grnVal = 0; 
@@ -98,6 +100,13 @@ void doCommand(String cmd) {
       } else if(cmd=="blink") {
         if(DEBUG) { Serial.println("blink command received "); }
         blink=true;
+      } else if(cmd=="off") {
+	if(DEBUG) { Serial.println("off command received "); }
+
+	digitalWrite(redPin, OFF);
+	digitalWrite(grnPin, OFF);
+	digitalWrite(bluPin, OFF);
+
       } else {
         Serial.println("Unknown command: "+cmd);
       }
@@ -137,7 +146,7 @@ void setBlink() {
   digitalWrite(bluPin, prevB);
   
   analogWrite(ledPin, LOW);
-  delay(500);
+  delay(100);
 }
 
 
